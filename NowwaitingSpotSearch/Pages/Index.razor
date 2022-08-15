@@ -1,0 +1,120 @@
+﻿@page "/"
+@using Microsoft.EntityFrameworkCore
+@using NowwaitingSpotSearch.Contexts
+@using NowwaitingSpotSearch.Entities
+
+<PageTitle>NowWaitingSpotSearch</PageTitle>
+
+<div class="container">
+    <div class="row mt-2">
+        <form @onsubmit=Search>
+            <input @bind=name type="text" class="form-control" placeholder="가게명">
+            <input @bind=address type="text" class="form-control mt-1" placeholder="주소">
+            <button type="submit" class="btn btn-primary w-100 mt-1">검색</button>
+        </form>
+    </div>
+
+    <div class="row mt-2">
+        <div class="col">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th scope="col">#</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Phone</th>
+                        <th scope="col">Address</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var spot in this.Spots)
+                    {
+                        <tr @onclick="() => OpenSpotInfo(spot.Id)">
+                            <th scope="row">@spot.Id</th>
+                            <td>@spot.Name</td>
+                            <td>@spot.Phone</td>
+                            <td>@spot.Address</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    @if (this.Loading)
+    {
+        <div class="d-flex justify-content-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+
+    @ExceptionMessage
+</div>
+
+
+@code
+{
+    private string? name;
+    private string? address;
+
+    [Inject]
+    public WaitingDBContext Context { get; set; }
+
+    [Inject]
+    public IJSRuntime jsRuntime { get; set; }
+
+    public List<SpotEntity> Spots { get; set; } = new List<SpotEntity>();
+    public bool Loading { get; set; }
+    public string ExceptionMessage { get; set; }
+
+    protected override void OnInitialized()
+    {
+        this.address = "파르나스";
+    }
+
+    public async Task Search()
+    {
+#warning 페이징 미처리
+
+        try
+        {
+            this.Loading = true;
+            StateHasChanged();
+
+            this.Spots.Clear();
+
+            var querableSpots = Context.Spots.AsQueryable();
+
+            //검색
+            if (!string.IsNullOrWhiteSpace(this.name))
+            {
+                querableSpots = querableSpots.Where(x => x.Name.Contains(name));
+            }
+            if (!string.IsNullOrWhiteSpace(this.address))
+            {
+                querableSpots = querableSpots.Where(x => x.Address.Contains(address));
+            }
+
+            //정렬
+            querableSpots = querableSpots.OrderByDescending(x => x.Id);
+
+            this.Spots = await querableSpots.ToListAsync();
+        }
+        catch (Exception ex)
+        {
+            this.ExceptionMessage = ex.Message;
+        }
+        finally
+        {
+            this.Loading = false;
+            StateHasChanged();
+        }
+    }
+
+    public async Task OpenSpotInfo(long spotId)
+    {
+        var url = $"https://store.nowwaiting.co/spots/{spotId}";
+        await jsRuntime.InvokeAsync<object>("open", url, "_blank");
+    }
+}
