@@ -9,21 +9,21 @@
 <div class="container">
     <div class="row mt-2">
         <form @onsubmit=Search>
-            <input @bind=name type="text" class="form-control" placeholder="가게명" disabled="@loading">
+            <input @bind=name type="text" class="form-control" placeholder="이름" disabled="@loading">
             <input @bind=address type="text" class="form-control mt-1" placeholder="주소" disabled="@loading">
-            <button type="submit" class="btn btn-primary w-100 mt-1 @(loading ? "disabled" : "")">검색</button>
+            <button type="submit" class="btn btn-primary w-100 mt-2 @(loading ? "disabled" : "")">검색</button>
         </form>
     </div>
 
     <div class="row mt-2">
         <div class="col">
-            <table class="table">
+            <table class="table table-hover">
                 <thead>
                     <tr>
                         <th scope="col">#</th>
-                        <th scope="col">Name</th>
-                        <th scope="col">Phone</th>
-                        <th scope="col">Address</th>
+                        <th scope="col">이름</th>
+                        <th scope="col">연락처</th>
+                        <th scope="col">주소</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -49,8 +49,6 @@
             </div>
         </div>
     }
-
-    @exceptionMessage
 </div>
 
 
@@ -71,7 +69,6 @@
     private string name;
     private string address;
     private bool loading;
-    private string exceptionMessage;
     private List<SpotEntity> spots = new List<SpotEntity>();
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -98,7 +95,6 @@
             this.loading = true;
 
             //초기화
-            this.exceptionMessage = string.Empty;
             this.spots.Clear();
 
             //trim
@@ -119,7 +115,7 @@
         }
         catch (Exception ex)
         {
-            this.exceptionMessage = ex.Message;
+            await JSRuntime.InvokeAsync<object>("alert", $"[ERROR]\n{ex.Message}");
         }
         finally
         {
