@@ -1,3 +1,4 @@
+using Blazored.LocalStorage;
 using Microsoft.EntityFrameworkCore;
 using NowwaitingSpotSearch.Contexts;
 
@@ -6,6 +7,7 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
+builder.Services.AddBlazoredLocalStorage();
 builder.Services.AddDbContext<WaitingDBContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("SqlServerConnectionString");

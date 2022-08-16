@@ -1,4 +1,5 @@
 ﻿@page "/"
+@using Blazored.LocalStorage
 @using Microsoft.EntityFrameworkCore
 @using NowwaitingSpotSearch.Contexts
 @using NowwaitingSpotSearch.Entities
@@ -8,9 +9,9 @@
 <div class="container">
     <div class="row mt-2">
         <form @onsubmit=Search>
-            <input @bind=name type="text" class="form-control" placeholder="가게명">
-            <input @bind=address type="text" class="form-control mt-1" placeholder="주소">
-            <button type="submit" class="btn btn-primary w-100 mt-1">검색</button>
+            <input @bind=name type="text" class="form-control" placeholder="가게명" disabled="@loading">
+            <input @bind=address type="text" class="form-control mt-1" placeholder="주소" disabled="@loading">
+            <button type="submit" class="btn btn-primary w-100 mt-1 @(loading ? "disabled" : "")">검색</button>
         </form>
     </div>
 
@@ -26,7 +27,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach (var spot in this.Spots)
+                    @foreach (var spot in this.spots)
                     {
                         <tr @onclick="() => OpenSpotInfo(spot.Id)">
                             <th scope="row">@spot.Id</th>
@@ -40,7 +41,7 @@
         </div>
     </div>
 
-    @if (this.Loading)
+    @if (this.loading)
     {
         <div class="d-flex justify-content-center">
             <div class="spinner-border" role="status">
@@ -49,72 +50,87 @@
         </div>
     }
 
-    @ExceptionMessage
+    @exceptionMessage
 </div>
 
 
 @code
 {
-    private string? name;
-    private string? address;
+    public const string NAME_KEY = "NAME";
+    public const string ADDRESS_KEY = "ADDRESS";
 
     [Inject]
     public WaitingDBContext Context { get; set; }
 
     [Inject]
-    public IJSRuntime jsRuntime { get; set; }
+    public IJSRuntime JSRuntime { get; set; }
 
-    public List<SpotEntity> Spots { get; set; } = new List<SpotEntity>();
-    public bool Loading { get; set; }
-    public string ExceptionMessage { get; set; }
+    [Inject]
+    public ILocalStorageService LocalStorageService { get; set; }
 
-    protected override void OnInitialized()
+    private string name;
+    private string address;
+    private bool loading;
+    private string exceptionMessage;
+    private List<SpotEntity> spots = new List<SpotEntity>();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        this.address = "파르나스";
+        if (firstRender)
+        {
+            this.name = await LocalStorageService.GetItemAsStringAsync(NAME_KEY) ?? string.Empty;
+            this.address = await LocalStorageService.GetItemAsStringAsync(ADDRESS_KEY) ?? string.Empty;
+            StateHasChanged();
+        }
     }
 
+    //검색
     public async Task Search()
     {
-#warning 페이징 미처리
-
         try
         {
-            this.Loading = true;
-            StateHasChanged();
+            if (string.IsNullOrWhiteSpace(this.name) && string.IsNullOrWhiteSpace(this.address))
+            {
+                await JSRuntime.InvokeAsync<object>("alert", "검색어를 입력하세요");
+                return;
+            }
 
-            this.Spots.Clear();
+            this.loading = true;
 
-            var querableSpots = Context.Spots.AsQueryable();
+            //초기화
+            this.exceptionMessage = string.Empty;
+            this.spots.Clear();
+
+            //trim
+            this.name = this.name?.Trim();
+            this.address = this.address?.Trim();
 
             //검색
-            if (!string.IsNullOrWhiteSpace(this.name))
-            {
-                querableSpots = querableSpots.Where(x => x.Name.Contains(name));
-            }
-            if (!string.IsNullOrWhiteSpace(this.address))
-            {
-                querableSpots = querableSpots.Where(x => x.Address.Contains(address));
-            }
+            this.spots = await Context.Spots
+                .AsQueryable()
+                .Where(x => string.IsNullOrWhiteSpace(this.name) || x.Name.Contains(this.name))
+                .Where(x => string.IsNullOrWhiteSpace(this.address) || x.Address.Contains(this.address))
+                .OrderByDescending(x => x.Id)
+                .ToListAsync();
 
-            //정렬
-            querableSpots = querableSpots.OrderByDescending(x => x.Id);
-
-            this.Spots = await querableSpots.ToListAsync();
+            //저장
+            await LocalStorageService.SetItemAsStringAsync(NAME_KEY, this.name);
+            await LocalStorageService.SetItemAsStringAsync(ADDRESS_KEY, this.address);
         }
         catch (Exception ex)
         {
-            this.ExceptionMessage = ex.Message;
+            this.exceptionMessage = ex.Message;
         }
         finally
         {
-            this.Loading = false;
-            StateHasChanged();
+            this.loading = false;
         }
     }
 
+    //스팟 정보 열기
     public async Task OpenSpotInfo(long spotId)
     {
         var url = $"https://store.nowwaiting.co/spots/{spotId}";
-        await jsRuntime.InvokeAsync<object>("open", url, "_blank");
+        await JSRuntime.InvokeAsync<object>("open", url, "_blank");
     }
 }
