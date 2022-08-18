@@ -3,62 +3,83 @@
 @using Microsoft.EntityFrameworkCore
 @using NowwaitingSpotSearch.Contexts
 @using NowwaitingSpotSearch.Entities
+@using System.Diagnostics
 
 <PageTitle>NowWaitingSpotSearch</PageTitle>
 
-<div class="container">
-    <div class="row mt-2">
-        <form @onsubmit=Search>
-            <input @bind=name type="text" class="form-control" placeholder="이름" disabled="@loading">
-            <input @bind=address type="text" class="form-control mt-1" placeholder="주소" disabled="@loading">
-            <button type="submit" class="btn btn-primary w-100 mt-2 @(loading ? "disabled" : "")">검색</button>
-        </form>
-    </div>
+@if (initialized) 
+{
+    <div class="container">
+        @*검색조건*@
+        <div class="row mt-2">
+            <form @onsubmit="OnSubmit">
+                <input @bind="name" @bind:event="oninput" type="text" class="form-control" placeholder="이름" @onchange="OnTextChange">
+                <input @bind="address" @bind:event="oninput" type="text" class="form-control mt-1" placeholder="주소" @onchange="OnTextChange">
 
-    <div class="row mt-2">
-        <div class="col">
-            <table class="table table-hover">
-                <thead>
-                    <tr>
-                        <th scope="col">#</th>
-                        <th scope="col">이름</th>
-                        <th scope="col">연락처</th>
-                        <th scope="col">주소</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var spot in this.spots)
-                    {
-                        <tr @onclick="() => OpenSpotInfo(spot.Id)">
-                            <th scope="row">@spot.Id</th>
-                            <td>@spot.Name</td>
-                            <td>@spot.Phone</td>
-                            <td>@spot.Address</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
+                <button type="submit" class="btn btn-primary w-100 mt-2 @(loading ? "disabled" : "")">검색</button>
+            </form>
         </div>
-    </div>
 
-    @if (this.loading)
-    {
+        @*리스트*@
+        <div class="row mt-2">
+            <div class="col">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th scope="col">#</th>
+                            <th scope="col">이름</th>
+                            <th scope="col">연락처</th>
+                            <th scope="col">주소</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        @foreach (var spot in this.spots)
+                        {
+                            <tr @onclick="() => OpenSpotInfo(spot.Id)">
+                                <th scope="row">@spot.Id</th>
+                                <td>@spot.Name</td>
+                                <td>@spot.Phone</td>
+                                <td>@spot.Address</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @*로딩*@
+        @if (this.loading)
+        {
+            <div class="d-flex justify-content-center">
+                <div class="spinner-border" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="container pt-5 pb-5">
         <div class="d-flex justify-content-center">
             <div class="spinner-border" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
         </div>
-    }
-</div>
+    </div>
+}
 
 
 @code
 {
+    #region property
+
     public const string NAME_KEY = "NAME";
     public const string ADDRESS_KEY = "ADDRESS";
 
     [Inject]
-    public WaitingDBContext Context { get; set; }
+    public IDbContextFactory<WaitingDBContext> ContextFactory { get; set; }
 
     [Inject]
     public IJSRuntime JSRuntime { get; set; }
@@ -66,48 +87,100 @@
     [Inject]
     public ILocalStorageService LocalStorageService { get; set; }
 
+    private CancellationTokenSource tokenSource = new CancellationTokenSource();
+    private bool initialized;
+    private bool loading;
     private string name;
     private string address;
-    private bool loading;
     private List<SpotEntity> spots = new List<SpotEntity>();
 
+    #endregion
+
+    #region event
+
+    //AfterRender
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
+            initialized = true;
+
             this.name = await LocalStorageService.GetItemAsStringAsync(NAME_KEY) ?? string.Empty;
             this.address = await LocalStorageService.GetItemAsStringAsync(ADDRESS_KEY) ?? string.Empty;
-            StateHasChanged();
+
+            if (!string.IsNullOrWhiteSpace(this.name) || !string.IsNullOrWhiteSpace(this.address))
+            {
+                await Query();
+            }
         }
     }
 
-    //검색
-    public async Task Search()
+    //Change
+    public async Task OnTextChange(ChangeEventArgs e)
     {
+        if (string.IsNullOrWhiteSpace(this.name) && string.IsNullOrWhiteSpace(this.address))
+        {
+            return;
+        }
+
+        await Task.Delay(100)
+            .ContinueWith(async task => await Query());
+    }
+
+    //Submit
+    public async Task OnSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(this.name) && string.IsNullOrWhiteSpace(this.address))
+        {
+            await JSRuntime.InvokeAsync<object>("alert", "검색어를 입력하세요");
+            return;
+        }
+
+        await Query();
+    }
+
+    #endregion
+
+    #region method
+
+    //검색
+    public async Task Query()
+    {
+        this.tokenSource.Cancel();
+        this.tokenSource.Dispose();
+        this.tokenSource = new CancellationTokenSource();
+
+        var token = this.tokenSource.Token;
+
         try
         {
-            if (string.IsNullOrWhiteSpace(this.name) && string.IsNullOrWhiteSpace(this.address))
+            if (token.IsCancellationRequested)
             {
-                await JSRuntime.InvokeAsync<object>("alert", "검색어를 입력하세요");
                 return;
             }
 
             this.loading = true;
 
+            Debug.WriteLine($"name: {name}, address: {address}");
+
             //초기화
             this.spots.Clear();
 
-            //trim
-            this.name = this.name?.Trim();
-            this.address = this.address?.Trim();
-
             //검색
-            this.spots = await Context.Spots
+            var context = await ContextFactory.CreateDbContextAsync();
+            var spots = await context.Spots
                 .AsQueryable()
                 .Where(x => string.IsNullOrWhiteSpace(this.name) || x.Name.Contains(this.name))
                 .Where(x => string.IsNullOrWhiteSpace(this.address) || x.Address.Contains(this.address))
                 .OrderByDescending(x => x.Id)
                 .ToListAsync();
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            this.spots = spots;
 
             //저장
             await LocalStorageService.SetItemAsStringAsync(NAME_KEY, this.name);
@@ -119,14 +192,20 @@
         }
         finally
         {
-            this.loading = false;
+            if (this.tokenSource.Token == token)
+            {
+                this.loading = false;
+            }
+
+            await InvokeAsync(StateHasChanged);
         }
     }
 
     //스팟 정보 열기
     public async Task OpenSpotInfo(long spotId)
     {
-        var url = $"https://store.nowwaiting.co/spots/{spotId}";
-        await JSRuntime.InvokeAsync<object>("open", url, "_blank");
+        await JSRuntime.InvokeAsync<object>("open", $"https://store.nowwaiting.co/spots/{spotId}", "_blank");
     }
+
+    #endregion
 }
