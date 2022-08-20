@@ -7,14 +7,50 @@
 
 <PageTitle>NowWaitingSpotSearch</PageTitle>
 
+<style>
+    .background-panel {
+        position: absolute;
+        top: 0;
+        width: 100vw;
+        height: 100vh;
+        /*background-color: rgb(0,0,0,0.2);*/
+        z-index: 999;
+    }
+    .fixed-middle {
+        position: fixed;
+        top: calc(50% - (32px / 2));
+        right: calc(50% - (32px / 2));
+    }
+</style>
+
 @if (initialized) 
 {
     <div class="container-fluid">
         @*검색조건*@
         <div class="row mt-2">
             <form @onsubmit="OnSubmit">
-                <input @bind="name" @bind:event="oninput" type="text" class="form-control" placeholder="이름" @onchange="OnTextChange">
-                <input @bind="address" @bind:event="oninput" type="text" class="form-control mt-1" placeholder="주소" @onchange="OnTextChange">
+                <input @bind="name" @bind:event="oninput" type="text" class="form-control" placeholder="이름">
+                <input @bind="address" @bind:event="oninput" type="text" class="form-control mt-1" placeholder="주소">
+
+                @*장소타입*@
+                <div class="mt-1">
+                    <button class="btn btn-outline-dark px-2 py-0 w-100" type="button" data-bs-toggle="collapse" data-bs-target="#spotType" aria-expanded="false" aria-controls="spotType">
+                        ▼
+                    </button>
+                    <div class="collapse mt-1" id="spotType">
+                        <div class="card card-body">
+                            @foreach (var spotType in this.spotTypes)
+                            {
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="" id="@spotType" checked>
+                                    <label class="form-check-label" for="@spotType">
+                                        @spotType
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
 
                 <button type="submit" class="btn btn-primary w-100 mt-2 @(loading ? "disabled" : "")">검색</button>
             </form>
@@ -35,7 +71,7 @@
                         {
                             <tr @onclick="() => OpenSpotInfo(spot.Id)">
                                 <td>
-                                    <div style="font-size: 16px; font-weight: bold">
+                                    <div style="font-size: 16px; font-weight: 600">
                                         @spot.Name
                                     </div>
                                     <div style="font-size: 12px">
@@ -62,8 +98,8 @@
 }
 else
 {
-    <div class="container py-5">
-        <div class="d-flex justify-content-center">
+    <div class="background-panel">
+        <div class="d-flex justify-content-center fixed-middle">
             <div class="spinner-border text-primary" role="status">
                 <span class="visually-hidden">Loading...</span>
             </div>
@@ -75,11 +111,15 @@ else
 {
     #region property
 
+    //상수
     public const string NAME_KEY = "NAME";
     public const string ADDRESS_KEY = "ADDRESS";
 
     [Inject]
     public IDbContextFactory<WaitingDBContext> ContextFactory { get; set; }
+
+    [Inject]
+    public WaitingDBContext DefaultContext { get; set; }
 
     [Inject]
     public IJSRuntime JSRuntime { get; set; }
@@ -88,11 +128,19 @@ else
     public ILocalStorageService LocalStorageService { get; set; }
 
     private CancellationTokenSource tokenSource = new CancellationTokenSource();
+
+    //로딩
     private bool initialized;
     private bool loading;
+
+    //검색
     private string name;
     private string address;
+    private List<string> spotSearchTypes = new List<string>();
+
+    //결과
     private List<SpotEntity> spots = new List<SpotEntity>();
+    private List<string> spotTypes = new List<string>();
 
     #endregion
 
@@ -105,26 +153,19 @@ else
         {
             initialized = true;
 
+            this.spotTypes = await this.DefaultContext.Spots.Select(x => x.SpotType).Distinct().ToListAsync();
+
             this.name = await LocalStorageService.GetItemAsStringAsync(NAME_KEY) ?? string.Empty;
             this.address = await LocalStorageService.GetItemAsStringAsync(ADDRESS_KEY) ?? string.Empty;
+            this.spotSearchTypes.AddRange(this.spotTypes);
 
             if (!string.IsNullOrWhiteSpace(this.name) || !string.IsNullOrWhiteSpace(this.address))
             {
                 await Query();
             }
-        }
-    }
 
-    //Change
-    public async Task OnTextChange(ChangeEventArgs e)
-    {
-        if (string.IsNullOrWhiteSpace(this.name) && string.IsNullOrWhiteSpace(this.address))
-        {
-            return;
+            await InvokeAsync(StateHasChanged);
         }
-
-        await Task.Delay(100)
-            .ContinueWith(async task => await Query());
     }
 
     //Submit
@@ -172,6 +213,7 @@ else
                 .AsQueryable()
                 .Where(x => string.IsNullOrWhiteSpace(this.name) || x.Name.Contains(this.name))
                 .Where(x => string.IsNullOrWhiteSpace(this.address) || x.Address.Contains(this.address))
+                .Where(x => this.spotSearchTypes.Contains(x.SpotType))
                 .OrderByDescending(x => x.Id)
                 .ToListAsync();
 

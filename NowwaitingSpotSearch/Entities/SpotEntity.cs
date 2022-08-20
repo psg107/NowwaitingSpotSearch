@@ -31,5 +31,11 @@ namespace NowwaitingSpotSearch.Entities
         /// </summary>
         [Column(Order = 3)]
         public string? Address { get; set; }
+
+        /// <summary>
+        /// 장소타입
+        /// </summary>
+        [Column(Order = 4)]
+        public string? SpotType { get; set; }
     }
 }

@@ -8,7 +8,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
 builder.Services.AddBlazoredLocalStorage();
-builder.Services.AddDbContextFactory<WaitingDBContext>(options =>
+Action<DbContextOptionsBuilder> options = options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("SqlServerConnectionString");
     options.UseSqlServer(connectionString, sqlOptions =>
@@ -18,7 +18,9 @@ builder.Services.AddDbContextFactory<WaitingDBContext>(options =>
               maxRetryDelay: TimeSpan.FromSeconds(30),
               errorNumbersToAdd: null);
     });
-}, ServiceLifetime.Transient);
+};
+builder.Services.AddDbContextFactory<WaitingDBContext>(options, ServiceLifetime.Transient);
+builder.Services.AddDbContext<WaitingDBContext>(options);
 
 var app = builder.Build();
 
