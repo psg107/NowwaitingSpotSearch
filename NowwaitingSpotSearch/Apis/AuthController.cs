@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using NowwaitingSpotSearch.Models;
 using NowwaitingSpotSearch.Contexts;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 
 namespace NowwaitingSpotSearch.Apis
 {
@@ -24,7 +25,7 @@ namespace NowwaitingSpotSearch.Apis
         }
 
         [Route("grant")]
-        public async Task<string> Grant(string code, string state)
+        public async Task<ContentResult> Grant(string code, string state)
         {
             try
             {
@@ -32,7 +33,7 @@ namespace NowwaitingSpotSearch.Apis
                 var authToken = context.AuthTokens.Where(x => x.State == state).FirstOrDefault();
                 if (authToken != null)
                 {
-                    return authToken.AccessToken;
+                    throw new Exception("이미 서버에 토큰이 존재합니다");
                 }
 
                 //인증
@@ -51,7 +52,7 @@ namespace NowwaitingSpotSearch.Apis
                     savedAuthToken.State = state;
                     await context.SaveChangesAsync();
 
-                    return savedAuthToken.AccessToken;
+                    return Content($"<h1>토큰 정보가 변경되었습니다. 브라우저를 종료 후 SlackProfile.exe를 다시 실행하세요.</h1>".Trim(), "text/html; charset=utf-8");
                 }
 
                 //신규 토큰
@@ -70,11 +71,11 @@ namespace NowwaitingSpotSearch.Apis
                     throw new Exception("fail2");
                 }
 
-                return oauthResponse.AccessToken;
+                return Content($"<h1>토큰이 생성되었습니다. 브라우저를 종료 후 SlackProfile.exe를 다시 실행하세요.</h1>".Trim(), "text/html; charset=utf-8");
             }
             catch (Exception ex)
             {
-                return string.Empty;
+                return Content($"<h1>로그인 중 오류가 발생했습니다.</h1>".Trim(), "text/html; charset=utf-8");
             }
         }
 
