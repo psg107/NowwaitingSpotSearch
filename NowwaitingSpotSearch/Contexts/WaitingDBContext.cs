@@ -11,5 +11,7 @@ namespace NowwaitingSpotSearch.Contexts
         }
 
         public DbSet<SpotEntity> Spots { get; set; }
+
+        public DbSet<AuthTokenEntity> AuthTokens { get; set; }
     }
 }

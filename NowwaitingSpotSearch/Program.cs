@@ -21,6 +21,8 @@ Action<DbContextOptionsBuilder> options = options =>
 };
 builder.Services.AddDbContextFactory<WaitingDBContext>(options, ServiceLifetime.Transient);
 builder.Services.AddDbContext<WaitingDBContext>(options);
+builder.Services.AddHttpClient();
+builder.Services.AddControllers();
 
 var app = builder.Build();
 
@@ -38,6 +40,7 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+app.MapControllers();
 app.MapBlazorHub();
 app.MapFallbackToPage("/_Host");
 
