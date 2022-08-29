@@ -63,7 +63,8 @@ namespace NowwaitingSpotSearch.Apis
                     TeamName = oauthResponse.TeamName,
                     TeamId = oauthResponse.TeamId,
                     EnterpriseId = oauthResponse.EnterpriseId,
-                    State = state
+                    State = state,
+                    RegDT = DateTime.Now
                 });
                 var saved = await context.SaveChangesAsync();
                 if (saved == 0)
