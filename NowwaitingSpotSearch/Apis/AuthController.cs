@@ -50,6 +50,7 @@ namespace NowwaitingSpotSearch.Apis
                 if (savedAuthToken != null)
                 {
                     savedAuthToken.State = state;
+                    savedAuthToken.UpdateDT = DateTime.Now;
                     await context.SaveChangesAsync();
 
                     return Content($"<h1>토큰 정보가 변경되었습니다. 브라우저를 종료 후 SlackProfile.exe를 다시 실행하세요.</h1>".Trim(), "text/html; charset=utf-8");
@@ -64,7 +65,8 @@ namespace NowwaitingSpotSearch.Apis
                     TeamId = oauthResponse.TeamId,
                     EnterpriseId = oauthResponse.EnterpriseId,
                     State = state,
-                    RegDT = DateTime.Now
+                    RegDT = DateTime.Now,
+                    UpdateDT = DateTime.Now
                 });
                 var saved = await context.SaveChangesAsync();
                 if (saved == 0)

@@ -39,5 +39,8 @@ namespace NowwaitingSpotSearch.Entities
 
         [Column(Order = 7)]
         public DateTime RegDT { get; set; }
+
+        [Column(Order = 8)]
+        public DateTime UpdateDT { get; set; }
     }
 }
